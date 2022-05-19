@@ -9,9 +9,14 @@ ifdef::env-github[]
 :caution-caption: :fire:
 :warning-caption: :warning:
 endif::[]
-:Adafruit-Feather-RP2040: https://learn.adafruit.com/adafruit-feather-rp2040-pico[Adafruit Feather RP2040]
+:Adafruit-Feather-RP2040: https://www.adafruit.com/product/4884[Adafruit Feather RP2040]
+:adafruit-feather-rp2040-bsp: https://github.com/rp-rs/rp-hal/tree/main/boards/adafruit-feather-rp2040[adafruit-feather-rp2040]
 :Asciidoctor-link: https://asciidoctor.org[Asciidoctor]
 :elf2uf2-rs: https://github.com/JoNil/elf2uf2-rs[elf2uf2-rs]
+:epd-waveshare: https://github.com/caemor/epd-waveshare[epd-waveshare]
+:embedded-graphics: https://github.com/embedded-graphics/embedded-graphics[embedded-graphics]
+:embedded-hal: https://github.com/rust-embedded/embedded-hal[embedded-hal]
+:embedded-time: https://github.com/FluenTech/embedded-time/[embedded-time]
 :fish: https://fishshell.com/[fish]
 :flip-link: https://github.com/knurling-rs/flip-link[flip-link]
 :Git: https://git-scm.com/[Git]
@@ -20,33 +25,45 @@ endif::[]
 :probe-rs: https://probe.rs/[probe-rs]
 :probe-run: https://github.com/knurling-rs/probe-run[probe-run]
 :Python: https://www.python.org/[Python]
+:rp2040-project-template: https://github.com/rp-rs/rp2040-project-template[Project template for rp2040-hal]
 :rp-hal: https://github.com/rp-rs/rp-hal[rp-hal]
 :Rouge: https://rouge.jneen.net/[Rouge]
 :Ruby: https://www.ruby-lang.org/en/[Ruby]
 :Rust: https://www.rust-lang.org/[Rust]
 :rustup: https://rustup.rs/[rustup]
+:shtcx: https://github.com/dbrgn/shtcx-rs[shtcx]
+:SHTC3: https://sensirion.com/products/catalog/SHTC3/[SHTC3]
+:smart-leds: https://github.com/smart-leds-rs/smart-leds[smart-leds]
 :UF2: https://github.com/microsoft/uf2[UF2]
+:ws2812-pio: https://github.com/ithinuel/ws2812-pio-rs/[ws2812-pio]
 
-A simple humidity sensor using the {Adafruit-Feather-RP2040}, a 2.9" Waveshare e-Paper Module monochrome, and SHTC3 humidity sensor, written in {Rust}.
+A simple humidity sensor using the {Adafruit-Feather-RP2040}, a 2.9" Waveshare e-Paper Module monochrome, and {SHTC3} humidity sensor, written in {Rust}.
 
 == Hardware
 
 All the hardware components in my particular build are enumerated here.
 
-.Fan Controller Components
+// Use 2 Half-Size Breadboard with Mounting Holes?
+
+.Required Components
 * {Adafruit-Feather-RP2040}
 * https://www.adafruit.com/product/4636[Adafruit Sensirion SHTC3 Temperature & Humidity Sensor]
-* https://www.adafruit.com/product/64[Half-size breadboard]
 * https://www.adafruit.com/product/3898[Lithium Ion Polymer Battery Ideal For Feathers - 3.7V 400mAh]
 * https://www.adafruit.com/product/4399[STEMMA QT / Qwiic JST SH 4-Pin Cable - 50mm Long]
-* https://www.adafruit.com/product/752[SWD 0.05" Pitch Connector - 10 Pin SMT Box Header]
 * https://www.waveshare.com/product/2.9inch-e-paper-module.htm[Waveshare 2.9inch E-Ink display module]
+
+.Optional Components
+* https://www.adafruit.com/product/400[Extra-long break-away 0.1" 16-pin strip male headers]
+* https://www.adafruit.com/product/64[Half-size breadboard]
+* https://www.adafruit.com/product/4048[Mini SWD 0.05" Pitch Connector - 10 Pin SMT Box Header]
 
 Programming will require a USB-C cable and a computer.
 
 == How it Works
 
 The humidity sensor queries and displays the temperature and humidity every 20 minutes.
+
+// todo Detail the pin connections used on the Feather RP2040.
 
 == Getting Started
 
@@ -151,23 +168,31 @@ cargo run
 * Reduce power consumption by putting XOSC into dormant mode and waking via ROSC.
 * Use partial refresh to only update the necessary portion of the screen for new measurements.
 * Add more pizzazz to the display.
+* Profile power consumption and battery life.
 * Add GitHub CI actions.
 * Add pre-commit hooks?
 * Include pictures in README.
 
 == References
 
-* https://learn.adafruit.com/adafruit-qt-py-2040/pinouts[Adafruit Feather RP2040 Pinouts]
-* https://en.wikipedia.org/wiki/Computer_fan_control#Pulse-width_modulation[Computer Fan Control: Pulse-width modulation]
-* https://github.com/rp-rs/rp2040-project-template[Project template for rp2040-hal]
-* https://github.com/jwillikers/pwm-fan-controller-micropython[PWM Fan Controller Micropython]
+.Hardware
+* https://learn.adafruit.com/adafruit-feather-rp2040-pico[Introducing Adafruit Feather RP2040]
+* https://learn.adafruit.com/adafruit-feather-rp2040-pico/pinouts[Adafruit Feather RP2040 Pinouts]
 * https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf[RP2040 Datasheet]
+* https://sensirion.com/media/documents/643F9C8E/6164081E/Sensirion_Humidity_Sensors_SHTC3_Datasheet.pdf[SHTC3 Datasheet]
+* https://www.waveshare.com/w/upload/e/e6/2.9inch_e-Paper_Datasheet.pdf[Waveshare 2.9inch e-Paper Module Datasheet]
+* https://www.waveshare.com/wiki/2.9inch_e-Paper_Module[Waveshare Wiki: 2.9inch e-Paper Module]
 
 .Rust Docs
-* https://docs.rs/adafruit-qt-py-rp2040/latest/adafruit_qt_py_rp2040/[adafruit-qt-py-rp2040]
+* https://docs.rs/adafruit-feather-rp2040/latest/adafruit_feather_rp2040/[adafruit-feather-rp2040]
+* https://docs.rs/embedded-graphics/latest/embedded_graphics/[embedded-graphics]
 * https://docs.rs/embedded-hal/latest/embedded_hal/[embedded-hal]
 * https://docs.rs/embedded-time/latest/embedded_time/[embedded-time]
+* https://docs.rs/epd-waveshare/latest/epd_waveshare/[epd-waveshare]
 * https://docs.rs/rp2040-hal/latest/rp2040_hal/[rp2040-hal]
+* https://docs.rs/shtcx/latest/shtcx/[shtcx]
+* https://docs.rs/smart-leds/latest/smart_leds/[smart-leds]
+* https://docs.rs/ws2812-pio/latest/ws2812_pio/[ws2812-pio]
 
 == Contributing
 
@@ -179,17 +204,29 @@ Make sure to adhere to the project's link:CODE_OF_CONDUCT.adoc[Code of Conduct].
 This project is built on the hard work of countless open source contributors.
 Several of these projects are enumerated below.
 
+* {adafruit-feather-rp2040-bsp}
 * {Asciidoctor-link}
+* {embedded-graphics}
+* {embedded-hal}
+* {embedded-time}
 * {elf2uf2-rs}
+* {epd-waveshare}
 * {fish}
 * {flip-link}
 * {Git}
+* {hs-probe}
 * {Linux}
+* {probe-rs}
+* {probe-run}
 * {Python}
 * {Rouge}
+* {rp2040-project-template}
 * {rp-hal}
 * {Ruby}
 * {Rust}
+* {shtcx}
+* {smart-leds}
+* {ws2812-pio}
 
 == Code of Conduct
 
