@@ -1,0 +1,211 @@
+= Humble Humidity Sensor
+Jordan Williams <jordan@jwillikers.com>
+:experimental:
+:icons: font
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+:Adafruit-Feather-RP2040: https://learn.adafruit.com/adafruit-feather-rp2040-pico[Adafruit Feather RP2040]
+:Asciidoctor-link: https://asciidoctor.org[Asciidoctor]
+:elf2uf2-rs: https://github.com/JoNil/elf2uf2-rs[elf2uf2-rs]
+:fish: https://fishshell.com/[fish]
+:flip-link: https://github.com/knurling-rs/flip-link[flip-link]
+:Git: https://git-scm.com/[Git]
+:hs-probe: https://github.com/probe-rs/hs-probe[hs-probe]
+:Linux: https://www.linuxfoundation.org/[Linux]
+:probe-rs: https://probe.rs/[probe-rs]
+:probe-run: https://github.com/knurling-rs/probe-run[probe-run]
+:Python: https://www.python.org/[Python]
+:rp-hal: https://github.com/rp-rs/rp-hal[rp-hal]
+:Rouge: https://rouge.jneen.net/[Rouge]
+:Ruby: https://www.ruby-lang.org/en/[Ruby]
+:Rust: https://www.rust-lang.org/[Rust]
+:rustup: https://rustup.rs/[rustup]
+:UF2: https://github.com/microsoft/uf2[UF2]
+
+A simple humidity sensor using the {Adafruit-Feather-RP2040}, a 2.9" Waveshare e-Paper Module monochrome, and SHTC3 humidity sensor, written in {Rust}.
+
+== Hardware
+
+All the hardware components in my particular build are enumerated here.
+
+.Fan Controller Components
+* {Adafruit-Feather-RP2040}
+* https://www.adafruit.com/product/4636[Adafruit Sensirion SHTC3 Temperature & Humidity Sensor]
+* https://www.adafruit.com/product/64[Half-size breadboard]
+* https://www.adafruit.com/product/3898[Lithium Ion Polymer Battery Ideal For Feathers - 3.7V 400mAh]
+* https://www.adafruit.com/product/4399[STEMMA QT / Qwiic JST SH 4-Pin Cable - 50mm Long]
+* https://www.adafruit.com/product/752[SWD 0.05" Pitch Connector - 10 Pin SMT Box Header]
+* https://www.waveshare.com/product/2.9inch-e-paper-module.htm[Waveshare 2.9inch E-Ink display module]
+
+Programming will require a USB-C cable and a computer.
+
+== How it Works
+
+The humidity sensor queries and displays the temperature and humidity every 20 minutes.
+
+== Getting Started
+
+. Install {rustup}.
++
+[,sh]
+----
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+----
+
+. Clone the repository.
++
+[,sh]
+----
+git clone https://github.com/jwillikers/humble-humidity-sensor.git
+----
+
+. Change to the project's directory.
++
+[,sh]
+----
+cd humble-humidity-sensor
+----
+
+. Install the {Rust} toolchain for the RP2040.
++
+[,sh]
+----
+rustup target add thumbv6m-none-eabi
+----
+
+. Install {flip-link}
++
+[,sh]
+----
+cargo install flip-link
+----
+
+. To flash the microcontroller over USB-C, change the `.cargo/config.toml` file to use `elf2uf2-rs` as the runner.
++
+..cargo/config.toml
+[,toml]
+----
+runner = "elf2uf2-rs -d"
+
+# runner = "probe-run --chip RP2040"
+----
+
+. Install {elf2uf2-rs}.
++
+[,sh]
+----
+cargo install elf2uf2-rs
+----
+
+. While holding the `BOOT` button, attach the Adafruit Feather RP2040 to your computer using the USB-C port.
+
+. Flash the board using Cargo's `run` subcommand.
++
+[,sh]
+----
+cargo run
+----
+
+== SWD
+
+An SWD connection is more convenient for flashing and debugging the microcontroller.
+It doesn't require fiddling with the tiny buttons on the dev-board constantly.
+If you've soldered an SWD debug header to the Feather RP2040, it's pretty accessible.
+The {hs-probe} debugger from the {probe-rs} project works great.
+
+. Attach the debugger to your computer.
+
+. Attach the debugger to the Feather RP2040's SWD header.
+
+. To flash the microcontroller over SWD, make sure that the `.cargo/config.toml` file sets the runner to `probe-run`.
++
+..cargo/config.toml
+[,toml]
+----
+# runner = "elf2uf2-rs -d"
+
+runner = "probe-run --chip RP2040"
+----
+
+. Install {probe-run}.
++
+[,sh]
+----
+cargo install probe-run
+----
+
+. Flash the board using Cargo's `run` subcommand.
++
+[,sh]
+----
+cargo run
+----
+
+== Todo
+
+* Reduce power consumption by putting XOSC into dormant mode and waking via ROSC.
+* Use partial refresh to only update the necessary portion of the screen for new measurements.
+* Add more pizzazz to the display.
+* Add GitHub CI actions.
+* Add pre-commit hooks?
+* Include pictures in README.
+
+== References
+
+* https://learn.adafruit.com/adafruit-qt-py-2040/pinouts[Adafruit Feather RP2040 Pinouts]
+* https://en.wikipedia.org/wiki/Computer_fan_control#Pulse-width_modulation[Computer Fan Control: Pulse-width modulation]
+* https://github.com/rp-rs/rp2040-project-template[Project template for rp2040-hal]
+* https://github.com/jwillikers/pwm-fan-controller-micropython[PWM Fan Controller Micropython]
+* https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf[RP2040 Datasheet]
+
+.Rust Docs
+* https://docs.rs/adafruit-qt-py-rp2040/latest/adafruit_qt_py_rp2040/[adafruit-qt-py-rp2040]
+* https://docs.rs/embedded-hal/latest/embedded_hal/[embedded-hal]
+* https://docs.rs/embedded-time/latest/embedded_time/[embedded-time]
+* https://docs.rs/rp2040-hal/latest/rp2040_hal/[rp2040-hal]
+
+== Contributing
+
+Contributions in the form of issues, feedback, and even pull requests are welcome.
+Make sure to adhere to the project's link:CODE_OF_CONDUCT.adoc[Code of Conduct].
+
+== Open Source Software
+
+This project is built on the hard work of countless open source contributors.
+Several of these projects are enumerated below.
+
+* {Asciidoctor-link}
+* {elf2uf2-rs}
+* {fish}
+* {flip-link}
+* {Git}
+* {Linux}
+* {Python}
+* {Rouge}
+* {rp-hal}
+* {Ruby}
+* {Rust}
+
+== Code of Conduct
+
+Refer to the project's link:CODE_OF_CONDUCT.adoc[Code of Conduct] for details.
+
+== License
+
+Licensed under either of
+
+* Apache License, Version 2.0 (link:LICENSE-APACHE[LICENSE-APACHE] or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license (link:LICENSE-MIT[LICENSE-MIT] or http://opensource.org/licenses/MIT)
+
+at your option.
+
+© 2022 Jordan Williams
+
+== Authors
+
+mailto:{email}[{author}]
