@@ -1,31 +1,29 @@
 #![no_std]
 #![no_main]
 
-use adafruit_feather_rp2040::{
-    hal::{
-        clocks::{init_clocks_and_plls, Clock},
-        gpio,
-        pac,
-        pio::PIOExt,
-        spi,
-        watchdog::Watchdog,
-        I2C,
-        Sio,
-        Timer,
-    },
-    Pins,
-    XOSC_CRYSTAL_FREQ,
-};
+// todo https://github.com/atsamd-rs/atsamd/blob/master/boards/feather_m0/examples/sleeping_timer.rs
+
+use bsp::hal;
+use bsp::pac;
+use feather_m0 as bsp;
+
+use bsp::{entry, periph_alias, pin_alias};
+use hal::clock::{enable_internal_32kosc, ClockGenId, ClockSource, GenericClockController};
+use hal::prelude::*;
+use hal::rtc;
+use hal::sleeping_delay::SleepingDelay;
+
 use core::convert::TryFrom;
 use core::fmt::Write;
-use cortex_m::delay::Delay;
-use cortex_m_rt::entry;
-use epd_waveshare::{
-    color::*,
-    epd2in9_v2::{Display2in9, Epd2in9},
-    graphics::DisplayRotation,
-    prelude::*,
-};
+use core::sync::atomic;
+use cortex_m::peripheral::NVIC;
+use pac::{interrupt, CorePeripherals, Peripherals, RTC};
+
+/// Shared atomic between RTC interrupt and sleeping_delay module
+static INTERRUPT_FIRED: atomic::AtomicBool = atomic::AtomicBool::new(false);
+
+use crate::hal::sercom::{i2c, spi};
+use crate::hal::time::MegaHertz;
 use embedded_graphics::{
     mono_font::MonoTextStyleBuilder,
     prelude::*,
@@ -34,99 +32,111 @@ use embedded_graphics::{
 };
 use embedded_hal::digital::v2::OutputPin;
 use embedded_time::{duration::*, rate::*};
+use epd_waveshare::{
+    color::*,
+    epd2in9_v2::{Display2in9, Epd2in9},
+    graphics::DisplayRotation,
+    prelude::*,
+};
+use feather_m0::hal::gpio;
+use hal::delay::Delay;
 use panic_halt as _;
 use shtcx::{self, LowPower, PowerMode};
-use smart_leds::{brightness, RGB, SmartLedsWrite};
-use smart_leds::hsv::{Hsv, hsv2rgb};
-use ws2812_pio::Ws2812;
 
 #[entry]
 fn main() -> ! {
-    let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
+    // Configure all of our peripherals/clocks
+    let mut peripherals = Peripherals::take().unwrap();
+    let mut core = CorePeripherals::take().unwrap();
+    let mut clocks = GenericClockController::with_internal_8mhz(
+        peripherals.GCLK,
+        &mut peripherals.PM,
+        &mut peripherals.SYSCTRL,
+        &mut peripherals.NVMCTRL,
+    );
 
-    let mut watchdog = Watchdog::new(pac.WATCHDOG);
+    let mut delay = Delay::new(core.SYST, &mut clocks);
 
-    // todo Save power by using ROSC?
-    // let clock = rosc::RingOscillator::new(pac.ROSC).initialize();
-    let clocks = init_clocks_and_plls(
-        XOSC_CRYSTAL_FREQ,
-        pac.XOSC,
-        pac.CLOCKS,
-        pac.PLL_SYS,
-        pac.PLL_USB,
-        &mut pac.RESETS,
-        &mut watchdog,
-    )
-        .ok()
+    // Get a clock & make a sleeping delay object. use internal 32k clock that runs
+    // in standby
+    enable_internal_32kosc(&mut peripherals.SYSCTRL);
+    let timer_clock = clocks
+        .configure_gclk_divider_and_source(ClockGenId::GCLK1, 1, ClockSource::OSC32K, false)
         .unwrap();
+    clocks.configure_standby(ClockGenId::GCLK1, true);
+    let rtc_clock = clocks.rtc(&timer_clock).unwrap();
+    let timer = rtc::Rtc::count32_mode(peripherals.RTC, rtc_clock.freq(), &mut peripherals.PM);
+    let mut sleeping_delay = SleepingDelay::new(timer, &INTERRUPT_FIRED);
 
-    let mut delay = Delay::new(core.SYST, clocks.system_clock.freq().integer());
+    // We can use the RTC in standby for maximum power savings
+    core.SCB.set_sleepdeep();
 
-    let sio = Sio::new(pac.SIO);
-    let pins = Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    // enable interrupts
+    unsafe {
+        core.NVIC.set_priority(interrupt::RTC, 2);
+        NVIC::unmask(interrupt::RTC);
+    }
 
-    let timer = Timer::new(pac.TIMER, &mut pac.RESETS);
-
-    // Configure the on-board NeoPixel.
-    let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
-    let mut ws = Ws2812::new(
-        pins.neopixel.into_mode(),
-        &mut pio,
-        sm0,
-        clocks.peripheral_clock.freq(),
-        timer.count_down(),
-    );
-    // todo Soft blink?
-    let rgb: RGB<u8> = hsv2rgb(Hsv {
-        hue: 5,
-        sat: 255,
-        val: 0,
+    // Turn off unnecessary peripherals
+    peripherals.PM.ahbmask.modify(|_, w| {
+        w.usb_().clear_bit();
+        w.dmac_().clear_bit()
     });
-    let data = [rgb; 1];
-    ws.write(data.iter().cloned()).unwrap();
+    peripherals.PM.apbamask.modify(|_, w| {
+        w.eic_().clear_bit();
+        w.wdt_().clear_bit();
+        w.sysctrl_().clear_bit();
+        w.pac0_().clear_bit()
+    });
+    peripherals.PM.apbbmask.modify(|_, w| {
+        w.usb_().clear_bit();
+        w.dmac_().clear_bit();
+        w.nvmctrl_().clear_bit();
+        w.dsu_().clear_bit();
+        w.pac1_().clear_bit()
+    });
+    let mut pm = peripherals.PM;
+
+    // Thankfully the only one default on here is ADC
+    pm.apbcmask.modify(|_, w| w.adc_().clear_bit());
+
+    let pins = bsp::Pins::new(peripherals.PORT);
+    let mut red_led: bsp::RedLed = pin_alias!(pins.red_led).into();
+    red_led.set_low().unwrap();
 
     // Configure the I²C pins
-    let sda_pin = pins.sda.into_mode::<gpio::FunctionI2C>();
-    let scl_pin = pins.scl.into_mode::<gpio::FunctionI2C>();
+    let sda = pins.sda;
+    let scl = pins.scl;
+    let pads = i2c::Pads::new(sda, scl);
 
-    let i2c = I2C::i2c1(
-        pac.I2C1,
-        sda_pin,
-        scl_pin,
-        400.kHz(),
-        &mut pac.RESETS,
-        clocks.peripheral_clock.freq(),
-    );
+    let gclk0 = clocks.gclk0();
+    let sercom3_clock = &clocks.sercom3_core(&gclk0).unwrap();
+    let i2c = i2c::Config::new(&pm, peripherals.SERCOM3, pads, sercom3_clock.freq())
+        .baud(100.khz())
+        .enable();
 
     // These are implicitly used by the SPI driver if they are in the correct mode
-    let _spi_sclk = pins.sclk.into_mode::<gpio::FunctionSpi>();
-    let _spi_mosi = pins.mosi.into_mode::<gpio::FunctionSpi>();
-    let _spi_miso = pins.miso.into_mode::<gpio::FunctionSpi>();
-    let spi_cs = pins.d10.into_push_pull_output();
+    let spi_cs = pins.d12.into_push_pull_output();
 
-    // Create an SPI driver instance for the SPI0 device
-    let spi = spi::Spi::<_, _, 8>::new(pac.SPI0);
-
-    // Exchange the uninitialised SPI driver for an initialised one
-    let mut spi = spi.init(
-        &mut pac.RESETS,
-        clocks.peripheral_clock.freq(),
-        16_000_000u32.Hz(),
-        &embedded_hal::spi::MODE_0,
+    let spi_sercom = periph_alias!(peripherals.spi_sercom);
+    let mut spi = bsp::spi_master(
+        &mut clocks,
+        MegaHertz(10),
+        spi_sercom,
+        &mut pm,
+        pins.sclk,
+        pins.mosi,
+        pins.miso,
     );
 
-    let dc = pins.d9.into_push_pull_output();
-    let rst = pins.d6.into_push_pull_output();
-    let busy = pins.d5.into_pull_up_input();
+    let dc = pins.d11.into_push_pull_output();
+    let rst = pins.d10.into_push_pull_output();
+    let busy = pins.d9.into_pull_up_input();
 
-    let mut epd = Epd2in9::new(&mut spi, spi_cs, busy, dc, rst, &mut delay).expect("eink initalize error");
-    epd.set_lut(&mut spi, Option::from(RefreshLut::Quick)).unwrap();
+    let mut epd = Epd2in9::new(&mut spi, spi_cs, busy, dc, rst, &mut sleeping_delay)
+        .expect("eink initalize error");
+    epd.set_lut(&mut spi, Option::from(RefreshLut::Quick))
+        .unwrap();
 
     let mut display = Display2in9::default();
     display.set_rotation(DisplayRotation::Rotate270);
@@ -138,8 +148,13 @@ fn main() -> ! {
         .build();
     let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
 
-    let _ = Text::with_text_style("Humble Humidity Sensor", Point::new(40, 10), style, text_style)
-        .draw(&mut display);
+    let _ = Text::with_text_style(
+        "Humble Humidity Sensor",
+        Point::new(40, 10),
+        style,
+        text_style,
+    )
+    .draw(&mut display);
 
     let mut sht = shtcx::shtc3(i2c);
 
@@ -163,13 +178,17 @@ fn main() -> ! {
             .draw(&mut display);
 
         buf.reset();
-        write!(&mut buf, "Temperature: {}°C", measurement.temperature.as_degrees_celsius()).unwrap();
+        write!(
+            &mut buf,
+            "Temperature: {}°C",
+            measurement.temperature.as_degrees_celsius()
+        )
+        .unwrap();
         let _ = Text::with_text_style(buf.as_str(), Point::new(50, 55), style, text_style)
             .draw(&mut display);
 
-        epd.wake_up(&mut spi, &mut delay).unwrap();
-        epd
-            .update_and_display_frame(&mut spi, display.buffer(), &mut delay)
+        epd.wake_up(&mut spi, &mut sleeping_delay).unwrap();
+        epd.update_and_display_frame(&mut spi, display.buffer(), &mut sleeping_delay)
             .expect("display frame new graphics");
         // todo Implement partial refresh.
         // epd
@@ -177,8 +196,12 @@ fn main() -> ! {
         //     .expect("display frame new graphics");
         // epd.display_frame(&mut spi, &mut delay).unwrap();
         // delay.delay_ms(15_000u32);
-        epd.sleep(&mut spi, &mut delay).unwrap();
-        delay.delay_ms(Milliseconds::<u32>::try_from(20_u32.minutes()).unwrap().integer());
+        epd.sleep(&mut spi, &mut sleeping_delay).unwrap();
+        sleeping_delay.delay_ms(
+            Milliseconds::<u32>::try_from(20_u32.minutes())
+                .unwrap()
+                .integer(),
+        );
     }
 }
 
@@ -220,5 +243,19 @@ impl Write for FmtBuf {
         self.buf[self.ptr..(self.ptr + len)].copy_from_slice(&s.as_bytes()[0..len]);
         self.ptr += len;
         Ok(())
+    }
+}
+
+#[interrupt]
+fn RTC() {
+    // Let the sleepingtimer know that the interrupt fired, and clear it
+    INTERRUPT_FIRED.store(true, atomic::Ordering::Relaxed);
+    unsafe {
+        RTC::ptr()
+            .as_ref()
+            .unwrap()
+            .mode0()
+            .intflag
+            .modify(|_, w| w.cmp0().set_bit());
     }
 }

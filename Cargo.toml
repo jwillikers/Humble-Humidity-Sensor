@@ -7,10 +7,9 @@ homepage = "https://github.com/jwillikers/Humble-Humidity-Sensor"
 description = "A simple humidity sensor"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jwillikers/Humble-Humidity-Sensor.git"
-keywords = ["adafruit", "embedded", "feather", "humidity", "no-std", "rp2040", "sensor", "shtc3", "temperature"]
+keywords = ["adafruit", "atsamd21", "embedded", "feather", "humidity", "no-std", "sensor", "shtc3", "temperature"]
 
 [dependencies]
-adafruit-feather-rp2040 = "0.2.0"
 shtcx = "0.10.0"
 cortex-m = "0.7.2"
 cortex-m-rt = "0.7"
@@ -20,5 +19,7 @@ embedded-hal ="0.2.5"
 embedded-time = "0.12.0"
 nb = "1.0.0"
 panic-halt= "0.2.0"
-smart-leds = "0.3.0"
-ws2812-pio = { git = "https://github.com/ithinuel/ws2812-pio-rs", rev = "fd6b6604d65a66242b52ccf7f24a95ca325991dd" }
+
+[dependencies.feather_m0]
+version = "0.12.1"
+features = ["default", "unproven"]
