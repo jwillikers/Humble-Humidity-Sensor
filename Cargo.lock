@@ -4,20 +4,21 @@ version = 3
 
 [[package]]
 name = "atsamd-hal"
-version = "0.15.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73ef309bf38b69dfbf7d5781c9fbce35b876a7f163653a7105848885047827a6"
+checksum = "1cddc374559f476b8225083732b400544075c67616e1b1e1635b0efe84bef158"
 dependencies = [
- "atsamd21g",
+ "atsamd21e",
  "bitfield",
  "bitflags",
  "cortex-m",
  "embedded-hal",
  "modular-bitfield",
- "nb 1.0.0",
+ "nb 0.1.3",
  "num-traits",
  "paste",
  "rand_core",
+ "replace_with",
  "seq-macro",
  "typenum",
  "vcell",
@@ -25,11 +26,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "atsamd21g"
-version = "0.12.0"
+name = "atsamd21e"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ec93ce03e1b6c6f852c5b3a1d9f2e489c30c0eddca07487083bb783ebc05bad"
+checksum = "52a7080de6a50cc0a1125b004771d8e8b1ed10d60bc88e92a38a6260a5806364"
 dependencies = [
+ "bare-metal",
  "cortex-m",
  "cortex-m-rt",
  "vcell",
@@ -166,16 +168,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "feather_m0"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adab0d5ee805f49023b2f3a5bf1798e7f5af1ce7e7065a7afd148204d5c1f446"
-dependencies = [
- "atsamd-hal",
- "cortex-m-rt",
-]
-
-[[package]]
 name = "float-cmp"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -194,9 +186,9 @@ dependencies = [
  "embedded-hal",
  "embedded-time",
  "epd-waveshare",
- "feather_m0",
  "nb 1.0.0",
  "panic-halt",
+ "qt_py_m0",
  "shtcx",
 ]
 
@@ -327,6 +319,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "qt_py_m0"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe9a88f7ac6dbb8392777bb2dbeeaba25f42dd9f19c4bbf869a538b701b0cf35"
+dependencies = [
+ "atsamd-hal",
+ "cortex-m-rt",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -337,9 +339,15 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
-version = "0.6.3"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
+checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
+
+[[package]]
+name = "replace_with"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a8614ee435691de62bcffcf4a66d91b3594bf1428a5722e79103249a095690"
 
 [[package]]
 name = "rustc_version"
@@ -367,9 +375,9 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "seq-macro"
-version = "0.3.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70d9841243dbc9928f5fed7946d2862292eebd823d96e13e556924d3db0120d2"
+checksum = "5a9f47faea3cad316faa914d013d24f471cd90bfca1a0c70f05a3f42c6441e99"
 
 [[package]]
 name = "shtcx"

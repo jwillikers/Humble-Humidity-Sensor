@@ -1,13 +1,11 @@
 #![no_std]
 #![no_main]
 
-// todo https://github.com/atsamd-rs/atsamd/blob/master/boards/feather_m0/examples/sleeping_timer.rs
-
 use bsp::hal;
 use bsp::pac;
-use feather_m0 as bsp;
+use qt_py_m0 as bsp;
 
-use bsp::{entry, periph_alias, pin_alias};
+use bsp::{entry, pin_alias};
 use hal::clock::{enable_internal_32kosc, ClockGenId, ClockSource, GenericClockController};
 use hal::prelude::*;
 use hal::rtc;
@@ -19,11 +17,8 @@ use core::sync::atomic;
 use cortex_m::peripheral::NVIC;
 use pac::{interrupt, CorePeripherals, Peripherals, RTC};
 
-/// Shared atomic between RTC interrupt and sleeping_delay module
-static INTERRUPT_FIRED: atomic::AtomicBool = atomic::AtomicBool::new(false);
-
 use crate::hal::sercom::{i2c, spi};
-use crate::hal::time::MegaHertz;
+use crate::hal::time::{KiloHertz, MegaHertz};
 use embedded_graphics::{
     mono_font::MonoTextStyleBuilder,
     prelude::*,
@@ -38,10 +33,14 @@ use epd_waveshare::{
     graphics::DisplayRotation,
     prelude::*,
 };
-use feather_m0::hal::gpio;
+use qt_py_m0::hal::gpio;
 use hal::delay::Delay;
 use panic_halt as _;
+use qt_py_m0::{I2c, Spi};
 use shtcx::{self, LowPower, PowerMode};
+
+/// Shared atomic between RTC interrupt and sleeping_delay module
+static INTERRUPT_FIRED: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
 #[entry]
 fn main() -> ! {
@@ -77,61 +76,49 @@ fn main() -> ! {
         NVIC::unmask(interrupt::RTC);
     }
 
+    let mut pm = peripherals.PM;
+
     // Turn off unnecessary peripherals
-    peripherals.PM.ahbmask.modify(|_, w| {
+    pm.ahbmask.modify(|_, w| {
         w.usb_().clear_bit();
         w.dmac_().clear_bit()
     });
-    peripherals.PM.apbamask.modify(|_, w| {
+    pm.apbamask.modify(|_, w| {
         w.eic_().clear_bit();
         w.wdt_().clear_bit();
         w.sysctrl_().clear_bit();
         w.pac0_().clear_bit()
     });
-    peripherals.PM.apbbmask.modify(|_, w| {
+    pm.apbbmask.modify(|_, w| {
         w.usb_().clear_bit();
         w.dmac_().clear_bit();
         w.nvmctrl_().clear_bit();
         w.dsu_().clear_bit();
         w.pac1_().clear_bit()
     });
-    let mut pm = peripherals.PM;
 
     // Thankfully the only one default on here is ADC
     pm.apbcmask.modify(|_, w| w.adc_().clear_bit());
 
-    let pins = bsp::Pins::new(peripherals.PORT);
-    let mut red_led: bsp::RedLed = pin_alias!(pins.red_led).into();
-    red_led.set_low().unwrap();
+    let pins = bsp::Pins::new(peripherals.PORT).split();
 
     // Configure the I²C pins
-    let sda = pins.sda;
-    let scl = pins.scl;
-    let pads = i2c::Pads::new(sda, scl);
-
-    let gclk0 = clocks.gclk0();
-    let sercom3_clock = &clocks.sercom3_core(&gclk0).unwrap();
-    let i2c = i2c::Config::new(&pm, peripherals.SERCOM3, pads, sercom3_clock.freq())
-        .baud(100.khz())
-        .enable();
+    // let gclk0 = clocks.gclk0();
+    let mut i2c = pins.i2c.init(&mut clocks, KiloHertz(100), peripherals.SERCOM1, &mut pm);
 
     // These are implicitly used by the SPI driver if they are in the correct mode
-    let spi_cs = pins.d12.into_push_pull_output();
+    let spi_cs = pins.analog.a3.into_push_pull_output();
 
-    let spi_sercom = periph_alias!(peripherals.spi_sercom);
-    let mut spi = bsp::spi_master(
+    let mut spi = pins.spi.init(
         &mut clocks,
         MegaHertz(10),
-        spi_sercom,
+        peripherals.SERCOM2,
         &mut pm,
-        pins.sclk,
-        pins.mosi,
-        pins.miso,
     );
 
-    let dc = pins.d11.into_push_pull_output();
-    let rst = pins.d10.into_push_pull_output();
-    let busy = pins.d9.into_pull_up_input();
+    let dc = pins.analog.a2.into_push_pull_output();
+    let rst = pins.analog.a1.into_push_pull_output();
+    let busy = pins.analog.a0.into_pull_up_input();
 
     let mut epd = Epd2in9::new(&mut spi, spi_cs, busy, dc, rst, &mut sleeping_delay)
         .expect("eink initalize error");
